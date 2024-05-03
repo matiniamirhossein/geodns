@@ -326,17 +326,25 @@ func (srv *Server) serve(w dns.ResponseWriter, req *dns.Msg, z *zones.Zone) {
 
 				if labelQtype == dns.TypeTXT {
 					rawResult := strings.ReplaceAll(rr.String(), rr.Header().String(), "")
-					rawResult = strings.ReplaceAll(rawResult, "\"", "")
-					rawResult = strings.ReplaceAll(rawResult, "\t", "")
 					rawResult = strings.TrimSpace(rawResult)
-
+					rawResult = rawResult[1 : len(rawResult)-1]
 					strArr = append(strArr, rawResult)
 				}
 			}
 
 			if labelQtype == dns.TypeTXT {
-				txt, _ := dns.NewRR(fmt.Sprintf("%s %s", rrs[0].Header(), strings.Join(strArr, "")))
-				rrs = []dns.RR{txt}
+				if len(strArr) == 1 && len(strArr[0]) > 255 {
+					wholeTxt := strArr[0]
+					maxLen := len(wholeTxt)
+					sections := int(math.Ceil(float64(maxLen) / 255.00))
+					newStrArr := make([]string, sections)
+					for i := 0; i <= sections-1; i++ {
+						maxPos := int(math.Min(float64((i+1)*255), float64(maxLen)))
+						newStrArr[i] = wholeTxt[i*255 : maxPos]
+					}
+					strArr = newStrArr
+				}
+				rrs = []dns.RR{&dns.TXT{Hdr: *rrs[0].Header(), Txt: strArr}}
 			}
 
 			m.Answer = append(m.Answer, rrs...)
