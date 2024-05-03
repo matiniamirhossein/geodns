@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/abh/geodns/v3/countries"
 	"log"
 	"net"
 	"net/netip"
@@ -190,6 +191,37 @@ func (srv *Server) serve(w dns.ResponseWriter, req *dns.Msg, z *zones.Zone) {
 	m.Authoritative = true
 
 	labelMatches := z.FindLabels(qlabel, targets, []uint16{dns.TypeMF, dns.TypeCNAME, qtype})
+
+	if len(labelMatches) == 1 {
+		var countryCode, continentCode string
+
+		if len(targets) == 3 {
+			countryCode, continentCode = targets[1], targets[2]
+		} else if len(targets) == 2 {
+			if countries.CountryContinent[targets[1]] != "" {
+				countryCode = targets[1]
+			} else {
+				continentCode = targets[1]
+			}
+		}
+
+		cc := strings.SplitN(labelMatches[0].Label.Label, ".", 2)
+
+		if len(cc) == 2 && (countries.CountryContinent[cc[1]] != "" || len(countries.ContinentCountries[cc[1]]) > 0) {
+			newTargets := targets
+
+			if cc[1] != countryCode && cc[1] != continentCode {
+				newTargets = append(newTargets, cc[1])
+			}
+
+			parentLabelMatches := z.FindLabels(cc[0], newTargets, []uint16{dns.TypeMF, dns.TypeCNAME, qtype})
+
+			if len(parentLabelMatches) > 1 {
+				// empty labelMatches
+				labelMatches = []zones.LabelMatch{}
+			}
+		}
+	}
 
 	if len(labelMatches) == 0 {
 
