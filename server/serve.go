@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/abh/geodns/v3/countries"
 	"log"
+	'math"
 	"net"
 	"net/netip"
 	"os"
