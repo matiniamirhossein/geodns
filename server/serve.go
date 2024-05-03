@@ -317,13 +317,31 @@ func (srv *Server) serve(w dns.ResponseWriter, req *dns.Msg, z *zones.Zone) {
 
 		if servers := z.Picker(label, labelQtype, label.MaxHosts, location); servers != nil {
 			var rrs []dns.RR
+			var strArr []string
+
 			for _, record := range servers {
 				rr := dns.Copy(record.RR)
 				rr.Header().Name = qnamefqdn
 				rrs = append(rrs, rr)
+
+				if labelQtype == dns.TypeTXT {
+					rawResult := strings.ReplaceAll(rr.String(), rr.Header().String(), "")
+					rawResult = strings.ReplaceAll(rawResult, "\"", "")
+					rawResult = strings.ReplaceAll(rawResult, "\t", "")
+					rawResult = strings.TrimSpace(rawResult)
+
+					strArr = append(strArr, rawResult)
+				}
 			}
-			m.Answer = rrs
+
+			if labelQtype == dns.TypeTXT {
+				txt, _ := dns.NewRR(fmt.Sprintf("%s %s", rrs[0].Header(), strings.Join(strArr, "")))
+				rrs = []dns.RR{txt}
+			}
+
+			m.Answer = append(m.Answer, rrs...)
 		}
+		
 		if len(m.Answer) > 0 {
 			// maxHosts only matter within a "targeting group"; at least that's
 			// how it has been working, so we stop looking for answers as soon
