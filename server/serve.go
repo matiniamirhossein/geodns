@@ -318,36 +318,28 @@ func (srv *Server) serve(w dns.ResponseWriter, req *dns.Msg, z *zones.Zone) {
 
 		if servers := z.Picker(label, labelQtype, label.MaxHosts, location); servers != nil {
 			var rrs []dns.RR
-			var strArr []string
-
 			for _, record := range servers {
 				rr := dns.Copy(record.RR)
 				rr.Header().Name = qnamefqdn
-				rrs = append(rrs, rr)
-
 				if labelQtype == dns.TypeTXT {
 					rawResult := strings.ReplaceAll(rr.String(), rr.Header().String(), "")
 					rawResult = strings.TrimSpace(rawResult)
 					rawResult = rawResult[1 : len(rawResult)-1]
-					strArr = append(strArr, rawResult)
-				}
-			}
 
-			if labelQtype == dns.TypeTXT {
-				if len(strArr) == 1 && len(strArr[0]) > 255 {
-					wholeTxt := strArr[0]
-					maxLen := len(wholeTxt)
-					sections := int(math.Ceil(float64(maxLen) / 255.00))
-					newStrArr := make([]string, sections)
-					for i := 0; i <= sections-1; i++ {
-						maxPos := int(math.Min(float64((i+1)*255), float64(maxLen)))
-						newStrArr[i] = wholeTxt[i*255 : maxPos]
+					if len(rawResult) > 255 {
+						maxLen := len(rawResult)
+						sections := int(math.Ceil(float64(maxLen) / 255.00))
+						newStrArr := make([]string, sections)
+						for i := 0; i <= sections-1; i++ {
+							maxPos := int(math.Min(float64((i+1)*255), float64(maxLen)))
+							newStrArr[i] = rawResult[i*255 : maxPos]
+						}
+						rrs = append(rrs, &dns.TXT{Hdr: *rr.Header(), Txt: newStrArr})
+						continue
 					}
-					strArr = newStrArr
 				}
-				rrs = []dns.RR{&dns.TXT{Hdr: *rrs[0].Header(), Txt: strArr}}
+				rrs = append(rrs, rr)
 			}
-
 			m.Answer = append(m.Answer, rrs...)
 		}
 		
